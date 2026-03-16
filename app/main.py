@@ -11,7 +11,7 @@ from app.agent.state import add_decision, set_step
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    description="Nolly - guarded agentic security scan orchestrator",
+    description="N0lly - guarded agentic security scan orchestrator",
 )
 
 
@@ -20,7 +20,7 @@ def root() -> dict:
     return {
         "app": settings.app_name,
         "env": settings.app_env,
-        "message": "Nolly API is running",
+        "message": "N0lly API is running",
     }
 
 
