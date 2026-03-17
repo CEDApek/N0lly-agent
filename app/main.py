@@ -1,12 +1,14 @@
 from fastapi import FastAPI, HTTPException
 
 from app.config import settings
-from app.storage.schemas import ScanRequest, ScanRecord
+from app.storage.schemas import ScanRequest, ScanRecord, ParsedFinding
 from app.storage.records import save_scan_record, get_scan_record
 from app.tools.validate_target_tool import validate_target_tool
 from app.tools.check_scope_tool import check_scope_tool
 from app.tools.submit_scan_tool import submit_scan_tool
 from app.tools.get_job_status_tool import get_job_status_tool
+from app.tools.fetch_artifacts_tool import fetch_artifacts_tool
+from app.tools.parse_nmap_results_tool import parse_nmap_results_tool
 from app.agent.state import add_decision, set_step
 
 
@@ -69,7 +71,6 @@ def create_scan(request: ScanRequest) -> ScanRecord:
         target=record.target,
         approved_profile=record.approved_profile,
     )
-
     if not submit_result["ok"]:
         raise HTTPException(status_code=500, detail=submit_result)
 
@@ -85,6 +86,38 @@ def create_scan(request: ScanRequest) -> ScanRecord:
 
         if job_status["status"] == "done":
             set_step(record, "scan_completed")
+
+            artifact_result = fetch_artifacts_tool(record.job_id)
+            if not artifact_result["ok"]:
+                raise HTTPException(status_code=500, detail=artifact_result)
+
+            add_decision(record, "Artifacts fetched successfully")
+            record.metadata["artifact_metadata"] = artifact_result["metadata"]
+            set_step(record, "artifacts_fetched")
+
+            parse_result = parse_nmap_results_tool(artifact_result["xml"])
+            if not parse_result["ok"]:
+                raise HTTPException(status_code=500, detail=parse_result)
+
+            record.parsed_findings = [
+                ParsedFinding(
+                    port=item["port"],
+                    service=item.get("service"),
+                    version=item.get("version"),
+                    note=item.get("note"),
+                )
+                for item in parse_result["parsed_findings"]
+            ]
+
+            record.metadata["finding_count"] = parse_result["finding_count"]
+            record.metadata["parsed_exposure_hints"] = [
+                item.get("exposure_hint")
+                for item in parse_result["parsed_findings"]
+                if item.get("exposure_hint")
+            ]
+
+            add_decision(record, f"Parsed findings: {parse_result['finding_count']}")
+            set_step(record, "findings_parsed")
 
     save_scan_record(record)
     return record
@@ -116,5 +149,6 @@ def read_scan_status(scan_id: str) -> dict:
         "approved_profile": record.approved_profile,
         "job_id": record.job_id,
         "job_status": job_status["status"] if job_status and job_status["ok"] else None,
+        "finding_count": len(record.parsed_findings),
         "followup_allowed": record.followup_allowed,
     }
