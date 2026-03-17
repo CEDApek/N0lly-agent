@@ -5,13 +5,15 @@ from app.storage.schemas import ScanRequest, ScanRecord
 from app.storage.records import save_scan_record, get_scan_record
 from app.tools.validate_target_tool import validate_target_tool
 from app.tools.check_scope_tool import check_scope_tool
+from app.tools.submit_scan_tool import submit_scan_tool
+from app.tools.get_job_status_tool import get_job_status_tool
 from app.agent.state import add_decision, set_step
 
 
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    description="N0lly - guarded agentic security scan orchestrator",
+    description="Nolly - guarded agentic security scan orchestrator",
 )
 
 
@@ -20,7 +22,7 @@ def root() -> dict:
     return {
         "app": settings.app_name,
         "env": settings.app_env,
-        "message": "N0lly API is running",
+        "message": "Nolly API is running",
     }
 
 
@@ -63,6 +65,27 @@ def create_scan(request: ScanRequest) -> ScanRecord:
     add_decision(record, f"Scope approved with profile: {scope_check['approved_profile']}")
     set_step(record, "scope_approved")
 
+    submit_result = submit_scan_tool(
+        target=record.target,
+        approved_profile=record.approved_profile,
+    )
+
+    if not submit_result["ok"]:
+        raise HTTPException(status_code=500, detail=submit_result)
+
+    record.job_id = submit_result["job_id"]
+    record.artifacts = submit_result["artifacts"]
+    add_decision(record, f"Job submitted: {record.job_id}")
+    set_step(record, "scan_submitted")
+
+    job_status = get_job_status_tool(record.job_id)
+    if job_status["ok"]:
+        record.metadata["job_status"] = job_status["status"]
+        add_decision(record, f"Job status: {job_status['status']}")
+
+        if job_status["status"] == "done":
+            set_step(record, "scan_completed")
+
     save_scan_record(record)
     return record
 
@@ -81,11 +104,17 @@ def read_scan_status(scan_id: str) -> dict:
     if record is None:
         raise HTTPException(status_code=404, detail="Scan record not found")
 
+    job_status = None
+    if record.job_id:
+        job_status = get_job_status_tool(record.job_id)
+
     return {
         "scan_id": record.scan_id,
         "target": record.target,
         "scope_status": record.scope_status,
         "current_step": record.current_step,
         "approved_profile": record.approved_profile,
+        "job_id": record.job_id,
+        "job_status": job_status["status"] if job_status and job_status["ok"] else None,
         "followup_allowed": record.followup_allowed,
     }
