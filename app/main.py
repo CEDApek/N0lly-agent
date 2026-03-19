@@ -10,6 +10,8 @@ from app.tools.get_job_status_tool import get_job_status_tool
 from app.tools.fetch_artifacts_tool import fetch_artifacts_tool
 from app.tools.parse_nmap_results_tool import parse_nmap_results_tool
 from app.agent.state import add_decision, set_step
+from app.tools.decide_followup_tool import decide_followup_tool
+from app.tools.generate_report_tool import generate_report_tool
 
 
 app = FastAPI(
@@ -119,6 +121,33 @@ def create_scan(request: ScanRequest) -> ScanRecord:
             add_decision(record, f"Parsed findings: {parse_result['finding_count']}")
             set_step(record, "findings_parsed")
 
+            # Follow-up step right here
+            followup_result = decide_followup_tool(
+                parsed_findings=parse_result["parsed_findings"],
+                approved_profile=record.approved_profile,
+            )
+            if not followup_result["ok"]:
+                raise HTTPException(status_code=500, detail=followup_result)
+
+            record.followup_allowed = followup_result["followup_allowed"]
+            record.metadata["recommended_followup_profile"] = followup_result["recommended_profile"]
+            record.metadata["followup_reason"] = followup_result["reason"]
+
+            add_decision(record, f"Follow-up allowed: {record.followup_allowed}")
+            add_decision(record, f"Follow-up decision reason: {followup_result['reason']}")
+            set_step(record, "followup_decided")
+
+            report_result = generate_report_tool(record)
+            if not report_result["ok"]:
+                raise HTTPException(status_code=500, detail=report_result)
+
+            record.final_report_path = f"reports/{record.scan_id}.md"
+            record.metadata["report_text"] = report_result["report_text"]
+            record.metadata["executive_summary"] = report_result["executive_summary"]
+
+            add_decision(record, "Report generated successfully")
+            set_step(record, "report_generated")
+
     save_scan_record(record)
     return record
 
@@ -151,4 +180,22 @@ def read_scan_status(scan_id: str) -> dict:
         "job_status": job_status["status"] if job_status and job_status["ok"] else None,
         "finding_count": len(record.parsed_findings),
         "followup_allowed": record.followup_allowed,
+    }
+
+@app.get("/scans/{scan_id}/report") #report endpoint
+def read_scan_report(scan_id: str) -> dict:
+    record = get_scan_record(scan_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Scan record not found")
+
+    report_text = record.metadata.get("report_text")
+    if not report_text:
+        raise HTTPException(status_code=404, detail="Report not available")
+
+    return {
+        "scan_id": record.scan_id,
+        "target": record.target,
+        "report_path": record.final_report_path,
+        "executive_summary": record.metadata.get("executive_summary"),
+        "report_text": report_text,
     }
