@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from app.agent.nolly_agent import NollyAgent
 
 from app.config import settings
 from app.storage.schemas import ScanRequest, ScanRecord, ParsedFinding
@@ -13,6 +14,7 @@ from app.agent.state import add_decision, set_step
 from app.tools.decide_followup_tool import decide_followup_tool
 from app.tools.generate_report_tool import generate_report_tool
 
+agent = NollyAgent()
 
 app = FastAPI(
     title=settings.app_name,
@@ -198,4 +200,17 @@ def read_scan_report(scan_id: str) -> dict:
         "report_path": record.final_report_path,
         "executive_summary": record.metadata.get("executive_summary"),
         "report_text": report_text,
+    }
+
+@app.get("/scans/{scan_id}/agent-analysis") # agent analysis from record
+def agent_analysis(scan_id: str) -> dict:
+    record = get_scan_record(scan_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    result = agent.analyze_record(record)
+
+    return {
+        "scan_id": scan_id,
+        "agent_result": result,
     }
