@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  target-web:
+    image: nginx:alpine
+    container_name: target-web
+    networks:
+      - nolly-lab
+
+  target-empty:
+    image: alpine:latest
+    container_name: target-empty
+    command: ["sh", "-c", "while true; do sleep 3600; done"]
+    networks:
+      - nolly-lab
+
+  target-multi:
+    image: python:3.11-alpine
+    container_name: target-multi
+    command: >
+      sh -c "
+      python -m http.server 80 &
+      python -m http.server 8080 &
+      while true; do sleep 3600; done
+      "
+    networks:
+      - nolly-lab
+
+networks:
+  nolly-lab:
+    driver: bridge
