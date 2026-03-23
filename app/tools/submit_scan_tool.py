@@ -1,3 +1,4 @@
+from app.config import settings
 from app.scanner.profiles import get_profile
 from app.scanner.job_store import (
     create_job,
@@ -7,6 +8,7 @@ from app.scanner.job_store import (
     set_job_result,
 )
 from app.scanner.runner_local import run_local_scan
+from app.scanner.runner_docker import run_docker_scan
 from app.storage.artifacts import write_job_artifact
 
 
@@ -16,8 +18,18 @@ def submit_scan_tool(target: str, approved_profile: str) -> dict:
 
     update_job_status(job["job_id"], "running")
 
-    # run real scans (Currently still on host)
-    result = run_local_scan(target=target, profile=profile.name, timeout=profile.max_duration_seconds)
+    if settings.runner_backend == "docker":
+        result = run_docker_scan(
+            target=target,
+            profile=profile.name,
+            timeout=profile.max_duration_seconds,
+        )
+    else:
+        result = run_local_scan(
+            target=target,
+            profile=profile.name,
+            timeout=profile.max_duration_seconds,
+        )
 
     if not result["ok"]:
         update_job_status(job["job_id"], "failed")
@@ -34,12 +46,9 @@ def submit_scan_tool(target: str, approved_profile: str) -> dict:
         returncode=result["returncode"],
     )
 
-    # stores the artifacts for each job
     stdout_path = write_job_artifact(job["job_id"], "stdout.log", result["stdout"])
     stderr_path = write_job_artifact(job["job_id"], "stderr.log", result["stderr"])
-
-    xml_content = result["stdout"]
-    xml_path = write_job_artifact(job["job_id"], "scan.xml", xml_content)
+    xml_path = write_job_artifact(job["job_id"], "scan.xml", result["stdout"])
 
     artifacts = [stdout_path, stderr_path, xml_path]
     set_job_artifacts(job["job_id"], artifacts)
@@ -62,5 +71,5 @@ def submit_scan_tool(target: str, approved_profile: str) -> dict:
         "profile_used": profile.name,
         "status": "done",
         "artifacts": artifacts,
-        "message": "Real scan job submitted successfully",
+        "message": f"Scan job submitted successfully using backend '{settings.runner_backend}'",
     }
