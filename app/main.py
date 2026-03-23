@@ -97,6 +97,7 @@ def create_scan(request: ScanRequest) -> ScanRecord:
 
             add_decision(record, "Artifacts fetched successfully")
             record.metadata["artifact_metadata"] = artifact_result["metadata"]
+            record.metadata["stderr_preview"] = artifact_result["stderr"][:500] if artifact_result.get("stderr") else ""
             set_step(record, "artifacts_fetched")
 
             parse_result = parse_nmap_results_tool(artifact_result["xml"])

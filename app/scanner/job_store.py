@@ -15,6 +15,8 @@ def create_job(target: str, profile: str) -> dict:
         "status": "queued",
         "artifacts": [],
         "error": None,
+        "returncode": None,
+        "command": None,
     }
 
     JOB_STORE[job_id] = job
@@ -40,4 +42,23 @@ def set_job_artifacts(job_id: str, artifacts: list[str]) -> Optional[dict]:
         return None
 
     job["artifacts"] = artifacts
+    return job
+
+
+def set_job_error(job_id: str, error: str) -> Optional[dict]:
+    job = JOB_STORE.get(job_id)
+    if not job:
+        return None
+
+    job["error"] = error
+    return job
+
+
+def set_job_result(job_id: str, command: list[str], returncode: int) -> Optional[dict]:
+    job = JOB_STORE.get(job_id)
+    if not job:
+        return None
+
+    job["command"] = command
+    job["returncode"] = returncode
     return job
