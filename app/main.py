@@ -147,6 +147,7 @@ def create_scan(request: ScanRequest) -> ScanRecord:
             record.final_report_path = f"reports/{record.scan_id}.md"
             record.metadata["report_text"] = report_result["report_text"]
             record.metadata["executive_summary"] = report_result["executive_summary"]
+            record.metadata["runner_backend"] = settings.runner_backend
 
             add_decision(record, "Report generated successfully")
             set_step(record, "report_generated")
