@@ -12,10 +12,10 @@ def fetch_artifacts_tool(job_id: str) -> dict:
             "job_id": job_id,
         }
 
-    if job["status"] != "done":
+    if not job["outputs_collected"]:
         return {
             "ok": False,
-            "reason": "Artifacts are not ready until job is done",
+            "reason": "Artifacts have not been collected yet",
             "job_id": job_id,
             "status": job["status"],
         }
@@ -44,12 +44,15 @@ def fetch_artifacts_tool(job_id: str) -> dict:
     stderr_content = read_job_artifact(stderr_path) if stderr_path else ""
 
     metadata = {
-        "source": "runner_local",
+        "source": "runner_docker_job",
         "job_id": job_id,
         "target": job["target"],
         "profile": job["profile"],
         "returncode": job["returncode"],
         "command": job["command"],
+        "runner_backend": job["runner_backend"],
+        "container_name": job["container_name"],
+        "cleaned_up": job["cleaned_up"],
     }
 
     return {
