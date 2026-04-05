@@ -1,43 +1,44 @@
+from strands import Agent
+
 from app.agent.prompts import SYSTEM_PROMPT
-from app.agent.tools_registry import TOOLS
+from app.agent.models import AgentDecision
+from app.agent.tools_strands import (
+    get_scan_snapshot,
+    get_scan_job_status,
+    process_scan_record,
+    get_scan_report,
+)
 
 
-class NollyAgent:
+class NollyStrandsAgent:
     def __init__(self):
-        self.system_prompt = SYSTEM_PROMPT
+        self.agent = Agent(
+            system_prompt=SYSTEM_PROMPT,
+            tools=[
+                get_scan_snapshot,
+                get_scan_job_status,
+                process_scan_record,
+                get_scan_report,
+            ],
+        )
 
-    def analyze_record(self, record) -> dict:
-        """
-        Simulated agent reasoning layer.
-        In future this will be replaced with Strands runtime.
-        """
+    def run_for_scan(self, scan_id: str):
+        prompt = f"""
+You are reviewing scan_id={scan_id}.
 
-        reasoning = []
+Your job:
+1. inspect the scan state
+2. decide the best next action
+3. if the scan is done but not yet processed, process it
+4. if a report already exists, summarize it
+5. return a structured decision
 
-        reasoning.append("Analyzing scan record...")
-        reasoning.append(f"Target: {record.target}")
-        reasoning.append(f"Findings count: {len(record.parsed_findings)}")
+Use tools when needed.
+"""
 
-        if not record.parsed_findings: #if no finding, show no need follow up
-            reasoning.append("No findings detected → no follow-up needed")
-            return {
-                "action": "none",
-                "reasoning": reasoning,
-            }
+        result = self.agent(
+            prompt,
+            structured_output_model=AgentDecision,
+        )
 
-        services = [f.service for f in record.parsed_findings if f.service]
-
-        if "http" in services: # we can add more later for more detected services type
-            reasoning.append("HTTP detected → considering web follow-up")
-            return {
-                "action": "consider_followup",
-                "recommended_profile": "web_light",
-                "reasoning": reasoning,
-            }
-
-        reasoning.append("No actionable follow-up identified")
-
-        return {
-            "action": "none",
-            "reasoning": reasoning,
-        }
+        return result
