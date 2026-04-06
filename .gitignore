@@ -209,3 +209,5 @@ __marimo__/
 
 # Project's local storage
 runtime_artifacts/
+
+creds.csv
