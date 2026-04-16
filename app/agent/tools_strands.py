@@ -1,8 +1,10 @@
 from strands import tool
+from fastapi import HTTPException
 
 from app.storage.records import get_scan_record
 from app.tools.get_job_status_tool import get_job_status_tool
 from app.services.scan_processing import process_scan_record_logic
+from app.services.followup import create_followup_scan_logic
 
 
 @tool
@@ -138,4 +140,37 @@ def get_scan_report(scan_id: str) -> dict:
         "report_text": report_text,
         "recommended_followup_profile": record.metadata.get("recommended_followup_profile"),
         "followup_reason": record.metadata.get("followup_reason"),
+    }
+
+# Added follow-up scanning tools
+@tool
+def create_followup_scan_record(scan_id: str) -> dict:
+    """
+    Create and submit an approved follow-up scan derived from a parent scan.
+
+    Args:
+        scan_id: The parent scan record ID.
+    """
+    try:
+        record = create_followup_scan_logic(scan_id)
+    except HTTPException as exc:
+        return {
+            "ok": False,
+            "reason": str(exc.detail),
+            "scan_id": scan_id,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "reason": f"Follow-up creation failed: {exc}",
+            "scan_id": scan_id,
+        }
+
+    return {
+        "ok": True,
+        "scan_id": record.scan_id,
+        "parent_scan_id": record.metadata.get("parent_scan_id"),
+        "current_step": record.current_step,
+        "approved_profile": record.approved_profile,
+        "job_id": record.job_id,
     }

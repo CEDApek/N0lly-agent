@@ -7,6 +7,7 @@ from app.agent.tools_strands import (
     get_scan_job_status,
     process_scan_record,
     get_scan_report,
+    create_followup_scan_record
 )
 
 
@@ -19,6 +20,7 @@ class NollyStrandsAgent:
                 get_scan_job_status,
                 process_scan_record,
                 get_scan_report,
+                create_followup_scan_record,
             ],
         )
 

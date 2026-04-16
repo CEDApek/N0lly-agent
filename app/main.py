@@ -14,6 +14,7 @@ from app.agent.state import add_decision, set_step
 from app.tools.decide_followup_tool import decide_followup_tool
 from app.tools.generate_report_tool import generate_report_tool
 from app.services.scan_processing import process_scan_record_logic
+from app.services.followup import create_followup_scan_logic
 
 # This is the nolly strands agent
 from app.agent.nolly_agent import NollyStrandsAgent
@@ -164,3 +165,8 @@ def run_agent_on_scan(scan_id: str) -> dict:
 @app.post("/scans/{scan_id}/process", response_model=ScanRecord)
 def process_scan(scan_id: str) -> ScanRecord:
     return process_scan_record_logic(scan_id)
+
+# This is the follow_up check and create the child record
+@app.post("/scans/{scan_id}/followup", response_model=ScanRecord)
+def create_followup_scan(scan_id: str) -> ScanRecord:
+    return create_followup_scan_logic(scan_id)
