@@ -10,6 +10,10 @@ from app.scanner.runner_docker_job import (
     collect_docker_scan_job_output,
     cleanup_docker_scan_job,
 )
+from app.scanner.runner_k8s_job import (
+    collect_k8s_scan_job_output,
+    cleanup_k8s_scan_job,
+)
 from app.storage.artifacts import write_job_artifact
 
 
@@ -30,13 +34,6 @@ def finalize_scan_job_tool(job_id: str) -> dict:
             "job_id": job_id,
         }
 
-    if not job["container_name"]:
-        return {
-            "ok": False,
-            "reason": "No container associated with this job",
-            "job_id": job_id,
-        }
-
     if job["outputs_collected"]:
         return {
             "ok": True,
@@ -45,7 +42,35 @@ def finalize_scan_job_tool(job_id: str) -> dict:
             "message": "Outputs already collected",
         }
 
-    output_result = collect_docker_scan_job_output(job["container_name"])
+    if job["runner_backend"] == "docker":
+        if not job["container_name"]:
+            return {
+                "ok": False,
+                "reason": "No container associated with this docker job",
+                "job_id": job_id,
+            }
+
+        output_result = collect_docker_scan_job_output(job["container_name"])
+        cleanup_result = cleanup_docker_scan_job(job["container_name"])
+
+    elif job["runner_backend"] == "kubernetes":
+        if not job.get("platform_job_name"):
+            return {
+                "ok": False,
+                "reason": "No Kubernetes job associated with this scan job",
+                "job_id": job_id,
+            }
+
+        output_result = collect_k8s_scan_job_output(job["platform_job_name"])
+        cleanup_result = cleanup_k8s_scan_job(job["platform_job_name"])
+
+    else:
+        return {
+            "ok": False,
+            "reason": f"Unsupported runner backend: {job['runner_backend']}",
+            "job_id": job_id,
+        }
+
     if not output_result["ok"]:
         set_job_error(job_id, output_result["reason"])
         return {
@@ -68,7 +93,6 @@ def finalize_scan_job_tool(job_id: str) -> dict:
     set_job_artifacts(job_id, artifacts)
     mark_outputs_collected(job_id, True)
 
-    cleanup_result = cleanup_docker_scan_job(job["container_name"])
     if cleanup_result["ok"]:
         mark_cleaned_up(job_id, True)
 

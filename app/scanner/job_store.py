@@ -22,6 +22,7 @@ def create_job(target: str, profile: str) -> dict:
         "container_id": None,
         "outputs_collected": False,
         "cleaned_up": False,
+        "platform_job_name": None,
     }
 
     JOB_STORE[job_id] = job
@@ -94,4 +95,21 @@ def mark_cleaned_up(job_id: str, value: bool = True) -> Optional[dict]:
     if not job:
         return None
     job["cleaned_up"] = value
+    return job
+
+def set_job_platform_info(
+    job_id: str,
+    runner_backend: str,
+    container_name: str | None = None,
+    container_id: str | None = None,
+    platform_job_name: str | None = None,
+) -> Optional[dict]:
+    job = JOB_STORE.get(job_id)
+    if not job:
+        return None
+
+    job["runner_backend"] = runner_backend
+    job["container_name"] = container_name
+    job["container_id"] = container_id
+    job["platform_job_name"] = platform_job_name
     return job

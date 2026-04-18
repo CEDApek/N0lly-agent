@@ -9,7 +9,7 @@ ALLOWED_TARGETS = {
     "127.0.0.1",
     "localhost",
     "172.20.0.1","172.20.0.3", "172.20.0.4", "172.19.0.2", "172.19.0.3", "172.19.0.4",
-    "172.20.0.2", # This is the target-web temporary target
+    "172.20.0.2", "10.96.47.50",# This is the target-web temporary target
 }
 
 AUTHORIZED_REFS = {
